@@ -13,18 +13,18 @@ def main():
     packets = rdpcap(pcap_path)
     print(f"[+] Loaded {len(packets)} packets.\n")
 
-    detector = IntrusionDetector(port_scan_threshold=5)
+    detector = IntrusionDetector(port_scan_threshold=5, syn_flood_threshold=10)
 
     for pkt in packets:
         features = extract_packet_features(pkt)
         detector.process_packet(features)
 
-    # 1. Traffic Summary
+    # 1. Traffic Breakdown
     print("=== Traffic Summary ===")
     for proto, count in detector.protocol_counts.items():
         print(f"  {proto:<6}: {count} packets")
 
-    # 2. Top-K Talkers via Min-Heap
+    # 2. Top-K Talkers
     print("\n=== Top-K Active Talkers (Min-Heap O(N log K)) ===")
     top_talkers = detector.get_top_talkers(k=3)
     for rank, (count, ip) in enumerate(top_talkers, start=1):
@@ -32,15 +32,14 @@ def main():
 
     # 3. Security Alerts
     print("\n=== Security Alerts ===")
-    alerts = detector.detect_port_scans()
-    if not alerts:
+    all_alerts = detector.detect_port_scans() + detector.detect_syn_floods()
+    if not all_alerts:
         print("  [✓] No anomalies detected.")
     else:
-        for alert in alerts:
+        for alert in all_alerts:
             print(f"  [!] ALERT: {alert['type']}")
-            print(f"      Source IP   : {alert['source_ip']}")
-            print(f"      Port Count  : {alert['unique_port_count']}")
-            print(f"      Target Ports: {alert['targeted_ports']}\n")
+            print(f"      Source IP: {alert['source_ip']}")
+            print(f"      Details  : {alert['details']}\n")
 
 if __name__ == "__main__":
     main()
