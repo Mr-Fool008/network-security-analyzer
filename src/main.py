@@ -13,7 +13,12 @@ def main():
     packets = rdpcap(pcap_path)
     print(f"[+] Loaded {len(packets)} packets.\n")
 
-    detector = IntrusionDetector(port_scan_threshold=5, syn_flood_threshold=10)
+    detector = IntrusionDetector(
+        port_scan_threshold=5,
+        syn_flood_threshold=10,
+        burst_threshold=5,
+        burst_window_seconds=2.0
+    )
 
     for pkt in packets:
         features = extract_packet_features(pkt)
@@ -32,7 +37,12 @@ def main():
 
     # 3. Security Alerts
     print("\n=== Security Alerts ===")
-    all_alerts = detector.detect_port_scans() + detector.detect_syn_floods()
+    all_alerts = (
+        detector.detect_port_scans()
+        + detector.detect_syn_floods()
+        + detector.detect_traffic_bursts()
+    )
+
     if not all_alerts:
         print("  [✓] No anomalies detected.")
     else:
