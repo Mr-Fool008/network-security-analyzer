@@ -1,77 +1,48 @@
-Open reports/dev_log.md in VS Code and update it with these comprehensive notes detailing both setup and technical decisions:
-
-Markdown
-# Network Security Analyzer - Engineering Log & Architecture Notes
+# Network Security Analyzer - Engineering Log
 
 ## Project Overview
-A lightweight Network Intrusion Detection System (NIDS) and packet analyzer built in Python, prioritizing core Data Structures & Algorithms (DSA) efficiency over simple black-box library calls.
+A lightweight Network Intrusion Detection System (NIDS) and packet analyzer built in Python, designed to apply core Data Structures & Algorithms (DSA) concepts to network security problems.
 
 ### Core References
-- [Y6THAY/Network_Traffic_Analyzer](https://github.com/Y6THAY/Network_Traffic_Analyzer): Reference for overall architecture, flow tracking, multi-threading, and stats dashboards.
-- [Tinshea/WireOwl](https://github.com/Tinshea/WireOwl): Reference for low-level packet structure and byte-level protocol parsing.
+- [Y6THAY/Network_Traffic_Analyzer](https://github.com/Y6THAY/Network_Traffic_Analyzer): Reference for architecture, traffic statistics, top-IP tracking, and dashboard reporting.
+- [Tinshea/WireOwl](https://github.com/Tinshea/WireOwl): Reference for low-level packet breakdown, byte offsets, and protocol parsing.
+- [pthevenet/Simple-NIDS](https://github.com/pthevenet/Simple-NIDS): Reference for rule-based signature detection logic.
+- [ghouddan/SOC-PCAP-Analyzer](https://github.com/ghouddan/SOC-PCAP-Analyzer): Reference for offline PCAP hunting and scan detection.
 
 ---
 
 ## Milestone 1: Environment, Isolation & Version Control
+- **Status:** Complete
 
-### 1. Project Directory Structure
-```text
-network-security-analyzer/
-├── .venv/               # Isolated Python virtual environment
-├── src/                 # Core engine and detection logic
-├── tests/               # Unit tests for parsers and detection rules
-├── pcaps/               # Packet capture test files
-├── reports/             # Developer logs, benchmarks, and project documentation
-├── .gitignore           # Git ignore configuration
-├── README.md            # Public documentation & architecture overview
-└── requirements.txt     # Locked project dependencies
-2. Environment Setup & Tooling
-Virtual Environment (.venv): Isolates Scapy and supporting dependencies from global system packages.
+### Implementation Details
+- Established project directory structure: `src/`, `tests/`, `pcaps/`, `reports/`.
+- Configured PowerShell execution policy to `RemoteSigned` for local virtual environment activation.
+- Initialized virtual environment (`.venv`) and installed Scapy.
+- Locked dependencies in `requirements.txt` and configured `.gitignore` to exclude `.venv/`, `__pycache__/`, and `.pcap` capture files.
+- Initialized local Git repository, configured identity, and linked to remote GitHub origin.
 
-PowerShell Execution Policy: Set via Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned to enable script execution for virtual environments.
+---
 
-Git & GitHub: Initialized locally and linked to remote GitHub repository for incremental commit tracking and portfolio proof.
+## Milestone 2: Offline Packet Ingestion & Algorithmic Parsing
+- **Status:** Complete
 
-.gitignore Configuration: Excluded .venv/, __pycache__/, and .pcap capture files to prevent repo bloat and protect sensitive network payload data.
+### Implementation Details
+- Generated synthetic PCAP capture (`pcaps/sample.pcap`) simulating normal HTTP/DNS traffic alongside a multi-port horizontal scan.
+- Parsed IP, TCP, and UDP layer headers via Scapy's `rdpcap`.
+- Integrated core DSA structures for high-volume packet indexing:
+  - **Hash Maps (`dict`):** Used for $O(1)$ average-time insertion and lookup to track IP and protocol packet frequencies.
+  - **Hash Sets (`set`):** Used for $O(1)$ automatic de-duplication to track unique destination ports contacted by each source IP.
+- Benchmarked complexity advantages of Hash Tables ($O(N)$ overall) versus linear list scanning ($O(N^2)$).
 
-Milestone 2: Offline Packet Ingestion & Algorithmic Parsing
-1. Packet Processing Concepts
-A network packet contains nested encapsulation layers:
+---
 
-Layer 2 (Ethernet): Hardware MAC routing.
+## Milestone 3: Modular Architecture & Threshold Detection
+- **Status:** Complete
 
-Layer 3 (IP): Source and destination host addresses (src, dst).
-
-Layer 4 (TCP/UDP): Transport protocols and target service ports (sport, dport).
-
-2. DSA Architecture Decisions
-Real-world network monitoring processes high packet volumes where naive linear searches fail:
-
-Hash Map / Dictionary (source_ip_counts):
-
-Purpose: Tracks packet volume per source IP.
-
-Complexity: O(1) average-time insertion and lookup.
-
-Why it matters: Maintains constant speed regardless of total packets captured.
-
-Hash Set (ip_to_dest_ports):
-
-Purpose: Maps each source IP to a set of unique destination ports.
-
-Complexity: O(1) insertion and automatic de-duplication.
-
-Why it matters: Differentiates normal high-volume traffic (e.g., 500 packets to port 443 → set size = 1) from horizontal port scans (e.g., 6 packets to 6 unique ports → set size = 6).
-
-Approach	1,000 Packets	1,000,000 Packets
-Naive Lists (O(N 
-2
- ))	~1,000,000 ops (~0.05s)	~1,000,000,000,000 ops (High latency / Crash)
-Hash Map + Set (O(N) total)	~1,000 ops (< 0.001s)	~1,000,000 ops (< 0.5s)
-3. Verification & Results
-Synthetic capture (pcaps/sample.pcap) verified:
-
-Normal client traffic: 192.168.1.50 (2 packets across 2 distinct ports).
-
-Scanner detection: 10.0.0.99 targeting 6 unique ports ([21, 22, 23, 80, 443, 8080]).
-
+### Implementation Details
+- Refactored monolithic prototype into modular components following the Single Responsibility Principle:
+  - `src/parser.py` (`extract_packet_features`): Handles Layer 3/4 header extraction into standardized feature dictionaries.
+  - `src/detector.py` (`IntrusionDetector`): Encapsulates detection state tables (Hash Maps/Sets) and threshold evaluation logic.
+  - `src/main.py` (`main`): Pipeline orchestrator that coordinates PCAP loading, parsing loops, and alert rendering.
+- Implemented **Port Scan Detection Rule**: Flags source IPs exceeding a configurable unique destination port threshold (`port_scan_threshold=5`).
+- Verified rule execution against `pcaps/sample.pcap`: Successfully isolated scanner host `10.0.0.99` targeting 6 unique ports (`[21, 22, 23, 80, 443, 8080]`).
