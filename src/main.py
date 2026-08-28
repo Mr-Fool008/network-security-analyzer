@@ -1,4 +1,5 @@
 import sys
+import argparse
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent))
@@ -6,12 +7,61 @@ sys.path.append(str(Path(__file__).resolve().parent))
 from scapy.all import rdpcap
 from parser import extract_packet_features
 from detector import IntrusionDetector
+from capture import LivePacketCapture
+
+def run_offline_analysis(pcap_path, detector):
+    print(f"[*] Ingesting offline capture: {pcap_path}")
+    packets = rdpcap(pcap_path)
+    print(f"[+] Loaded {len(packets)} total packets.\n")
+
+    for pkt in packets:
+        features = extract_packet_features(pkt)
+        detector.process_packet(features)
+
+def print_dashboard(detector):
+    print("\n" + "=" * 45)
+    print("           TRAFFIC & SECURITY REPORT         ")
+    print("=" * 45)
+
+    # 1. Protocol Breakdown
+    print("\n--- Protocol Distribution ---")
+    if not detector.protocol_counts:
+        print("  No IP traffic recorded.")
+    for proto, count in detector.protocol_counts.items():
+        print(f"  {proto:<6}: {count} packets")
+
+    # 2. Top-K Talkers via Min-Heap
+    print("\n--- Top-K Active Talkers (Min-Heap) ---")
+    top_talkers = detector.get_top_talkers(k=3)
+    if not top_talkers:
+        print("  No hosts recorded.")
+    for rank, (count, ip) in enumerate(top_talkers, start=1):
+        print(f"  #{rank}: {ip:<15} ({count} packets)")
+
+    # 3. Security Alerts
+    print("\n--- Security Alerts ---")
+    all_alerts = (
+        detector.detect_port_scans()
+        + detector.detect_syn_floods()
+        + detector.detect_traffic_bursts()
+    )
+
+    if not all_alerts:
+        print("  [✓] No anomalies detected. Clean traffic.")
+    else:
+        for alert in all_alerts:
+            print(f"  [!] ALERT: {alert['type']}")
+            print(f"      Source IP: {alert['source_ip']}")
+            print(f"      Details  : {alert['details']}\n")
+    print("=" * 45 + "\n")
 
 def main():
-    pcap_path = "pcaps/sample.pcap"
-    print(f"[*] Ingesting: {pcap_path}")
-    packets = rdpcap(pcap_path)
-    print(f"[+] Loaded {len(packets)} packets.\n")
+    parser = argparse.ArgumentParser(description="Network Security Analyzer & NIDS")
+    parser.add_argument("--mode", choices=["offline", "live"], default="offline", help="Operation mode")
+    parser.add_argument("--pcap", default="pcaps/sample.pcap", help="Path to PCAP file (offline mode)")
+    parser.add_argument("--count", type=int, default=0, help="Number of packets to sniff (live mode, 0 = continuous)")
+
+    args = parser.parse_args()
 
     detector = IntrusionDetector(
         port_scan_threshold=5,
@@ -20,36 +70,13 @@ def main():
         burst_window_seconds=2.0
     )
 
-    for pkt in packets:
-        features = extract_packet_features(pkt)
-        detector.process_packet(features)
+    if args.mode == "offline":
+        run_offline_analysis(args.pcap, detector)
+    elif args.mode == "live":
+        live_cap = LivePacketCapture(detector, packet_count=args.count)
+        live_cap.start()
 
-    # 1. Traffic Breakdown
-    print("=== Traffic Summary ===")
-    for proto, count in detector.protocol_counts.items():
-        print(f"  {proto:<6}: {count} packets")
-
-    # 2. Top-K Talkers
-    print("\n=== Top-K Active Talkers (Min-Heap O(N log K)) ===")
-    top_talkers = detector.get_top_talkers(k=3)
-    for rank, (count, ip) in enumerate(top_talkers, start=1):
-        print(f"  #{rank}: {ip:<15} ({count} packets)")
-
-    # 3. Security Alerts
-    print("\n=== Security Alerts ===")
-    all_alerts = (
-        detector.detect_port_scans()
-        + detector.detect_syn_floods()
-        + detector.detect_traffic_bursts()
-    )
-
-    if not all_alerts:
-        print("  [✓] No anomalies detected.")
-    else:
-        for alert in all_alerts:
-            print(f"  [!] ALERT: {alert['type']}")
-            print(f"      Source IP: {alert['source_ip']}")
-            print(f"      Details  : {alert['details']}\n")
+    print_dashboard(detector)
 
 if __name__ == "__main__":
     main()
