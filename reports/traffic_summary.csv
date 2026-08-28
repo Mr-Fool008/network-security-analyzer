@@ -1,0 +1,10 @@
+--- Protocol Distribution ---
+Protocol,Packet Count
+TCP,24
+UDP,1
+
+--- Top-K Active Talkers ---
+Rank,IP Address,Packet Count
+1,172.16.0.44,15
+2,10.0.0.99,6
+3,192.168.1.50,3
